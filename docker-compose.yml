@@ -1,0 +1,194 @@
+services:
+  # MySQL 8.0 - 业务数据库
+  mysql:
+    image: mysql:8.0
+    container_name: happy-billing-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-happy_billing_2024}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-happy_billing}
+      MYSQL_USER: ${MYSQL_USER:-billing_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-billing_pass_2024}
+      TZ: Asia/Shanghai
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --max_connections=1000
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-happy_billing_2024}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - billing-network
+
+  # Redis 7.x - 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: happy-billing-redis
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf
+    command: redis-server /usr/local/etc/redis/redis.conf --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - billing-network
+
+  # ClickHouse 23.x - 计量数据库
+  clickhouse:
+    image: clickhouse/clickhouse-server:23-alpine
+    container_name: happy-billing-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB:-happy_billing}
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER:-billing_user}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-billing_pass_2024}
+      TZ: Asia/Shanghai
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT:-8123}:8123"
+      - "${CLICKHOUSE_NATIVE_PORT:-9000}:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./docker/clickhouse/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--query", "SELECT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - billing-network
+
+  # Jaeger All-in-One - 链路追踪
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: happy-billing-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_ZIPKIN_HOST_PORT: :9411
+      TZ: Asia/Shanghai
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"          # Jaeger UI
+      - "${JAEGER_COLLECTOR_PORT:-14268}:14268"   # Jaeger Collector
+      - "${JAEGER_AGENT_PORT:-6831}:6831/udp"     # Jaeger Agent
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:16686"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - billing-network
+
+  # Kafka - 消息队列 (可选)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: happy-billing-zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      TZ: Asia/Shanghai
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    networks:
+      - billing-network
+    profiles:
+      - with-kafka
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: happy-billing-kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      TZ: Asia/Shanghai
+    ports:
+      - "${KAFKA_PORT:-29092}:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - billing-network
+    profiles:
+      - with-kafka
+
+  # Adminer - 数据库管理工具 (可选)
+  adminer:
+    image: adminer:latest
+    container_name: happy-billing-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: mysql
+      TZ: Asia/Shanghai
+    ports:
+      - "${ADMINER_PORT:-8080}:8080"
+    networks:
+      - billing-network
+    profiles:
+      - with-admin-tools
+
+  # RedisInsight - Redis 管理工具 (可选)
+  redis-insight:
+    image: redislabs/redisinsight:latest
+    container_name: happy-billing-redis-insight
+    restart: unless-stopped
+    ports:
+      - "${REDIS_INSIGHT_PORT:-8001}:8001"
+    volumes:
+      - redis_insight_data:/db
+    networks:
+      - billing-network
+    profiles:
+      - with-admin-tools
+
+networks:
+  billing-network:
+    driver: bridge
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  clickhouse_data:
+    driver: local
+  zookeeper_data:
+    driver: local
+  zookeeper_logs:
+    driver: local
+  kafka_data:
+    driver: local
+  redis_insight_data:
+    driver: local

@@ -58,7 +58,36 @@ happy-billing/
 
 ## 🚀 快速开始
 
-### 前置条件
+### 方式一：使用 Docker Compose（推荐）⭐
+
+**一键启动所有依赖服务：**
+
+```bash
+# 1. 启动所有服务（MySQL, Redis, ClickHouse, Jaeger）
+./scripts/start-docker.sh
+
+# 或手动执行
+docker-compose up -d
+
+# 2. 编译并启动 API 服务
+go build -o bin/api cmd/api/main.go
+./bin/api
+
+# 3. 验证服务
+curl http://localhost:8080/health
+```
+
+**访问管理界面：**
+- Jaeger UI (链路追踪): http://localhost:16686
+- API 服务: http://localhost:8080
+
+**详细文档:** [Docker Compose 部署指南](docs/deployment/docker-compose-guide.md)
+
+---
+
+### 方式二：手动安装
+
+#### 前置条件
 
 - Go 1.25+
 - MySQL 8.0+

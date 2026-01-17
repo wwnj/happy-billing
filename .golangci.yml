@@ -1,20 +1,20 @@
 # golangci-lint 配置文件
 # 文档: https://golangci-lint.run/usage/configuration/
-
+version: "2"
 run:
   # 超时时间
   timeout: 5m
-  
+
   # 要检查的路径
   tests: true
-  
+
   # 要跳过的目录
   skip-dirs:
     - vendor
     - bin
     - scripts
     - docs
-  
+
   # 要跳过的文件
   skip-files:
     - ".*\\.pb\\.go$"
@@ -23,18 +23,14 @@ run:
 # 启用的 linter
 linters:
   enable:
-    # 默认启用的 linter
+    # 默认启用的 linter（已自动启用，但明确列出以示清晰）
     - errcheck      # 检查未处理的错误
-    - gosimple      # 简化代码
     - govet         # 使用 go vet 检查
     - ineffassign   # 检查无效的赋值
-    - staticcheck   # 静态分析检查
-    - typecheck     # 类型检查
+    - staticcheck   # 静态分析检查（包含原 gosimple）
     - unused        # 检查未使用的常量、变量、函数等
-    
+
     # 额外启用的 linter
-    - gofmt         # 检查代码格式
-    - goimports     # 检查 import 排序
     - gosec         # 安全检查
     - dupl          # 检查重复代码
     - goconst       # 检查可以提取为常量的字符串
@@ -44,57 +40,49 @@ linters:
     - unconvert     # 检查不必要的类型转换
     - unparam       # 检查未使用的函数参数
     - whitespace    # 检查多余的空白
-    - stylecheck    # 代码风格检查
-    - revive        # 快速、可配置的 Go linter
+    - revive        # 快速、可配置的 Go linter（替代 golint）
     - prealloc      # 检查可以预分配的切片
-    - exportloopref # 检查循环中导出指针
+    - copyloopvar   # 检查循环中复制的变量（替代 exportloopref）
     - noctx         # 检查未使用 context 的 HTTP 请求
     - bodyclose     # 检查 HTTP response body 是否关闭
-    
-  disable:
-    - structcheck   # 已废弃，使用 unused 替代
-    - varcheck      # 已废弃，使用 unused 替代
-    - deadcode      # 已废弃，使用 unused 替代
-    - golint        # 已废弃，使用 revive 替代
+    - gocritic      # 代码诊断检查（性能和风格）
+    - errorlint     # 检查 Go 1.13+ 错误包装
+    - godot         # 检查注释是否以句点结尾
 
 # Linter 配置
 linters-settings:
   # 圈复杂度检查
   gocyclo:
     min-complexity: 15  # 最小复杂度阈值
-  
+
   # 认知复杂度检查
   gocognit:
     min-complexity: 20  # 最小复杂度阈值
-  
+
   # 重复代码检查
   dupl:
     threshold: 100  # 重复代码行数阈值
-  
+
   # 常量提取检查
   goconst:
     min-len: 3              # 最小字符串长度
     min-occurrences: 3      # 最小重复次数
     ignore-tests: true      # 忽略测试文件
-  
+
   # 安全检查
   gosec:
     excludes:
       - G404  # 使用弱随机数生成器（测试代码中可能需要）
-  
+
   # 错误检查
   errcheck:
     check-type-assertions: true   # 检查类型断言
     check-blank: false            # 不检查 _ 赋值
-  
+
   # 未使用的参数检查
   unparam:
     check-exported: false  # 不检查导出函数
-  
-  # 代码风格检查
-  stylecheck:
-    checks: ["all"]
-  
+
   # revive 配置
   revive:
     rules:
@@ -131,28 +119,24 @@ issues:
         - dupl
         - gosec
         - errcheck
-    
+
     # 生成的文件
     - path: \.pb\.go$
       linters:
         - all
-    
+
     # 特定问题排除
     - linters:
         - gosec
       text: "G404:"  # 弱随机数生成（测试中可能需要）
-    
-    - linters:
-        - stylecheck
-      text: "ST1003:"  # 下划线命名（某些第三方库需要）
-  
+
   # 不限制问题数量
   max-issues-per-linter: 0
   max-same-issues: 0
-  
+
   # 显示所有问题
   new: false
-  
+
   # 排除默认的排除规则
   exclude-use-default: false
 
@@ -160,12 +144,12 @@ issues:
 output:
   # 输出格式: colored-line-number, line-number, json, tab, checkstyle, code-climate
   format: colored-line-number
-  
+
   # 打印检查的行数
   print-issued-lines: true
-  
+
   # 打印 linter 名称
   print-linter-name: true
-  
+
   # 使排序可重现
   sort-results: true

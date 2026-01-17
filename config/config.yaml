@@ -1,0 +1,73 @@
+# Happy Billing 配置文件 (Docker 环境)
+
+# HTTP 服务器配置
+server:
+  host: 0.0.0.0
+  port: 8080
+  mode: debug  # debug, release, test
+  read_timeout: 10s
+  write_timeout: 10s
+
+# MySQL 数据库配置
+mysql:
+  host: 127.0.0.1
+  port: 3306
+  username: billing_user
+  password: billing_pass_2024
+  database: happy_billing
+  charset: utf8mb4
+  max_idle_conns: 10
+  max_open_conns: 100
+  conn_max_lifetime: 3600s
+  log_level: info  # silent, error, warn, info
+
+# ClickHouse 数据库配置
+clickhouse:
+  addresses:
+    - 127.0.0.1:9000
+  database: happy_billing
+  username: billing_user
+  password: billing_pass_2024
+  max_idle_conns: 5
+  max_open_conns: 10
+  conn_max_lifetime: 3600s
+  dial_timeout: 10s
+
+# Redis 配置
+redis:
+  host: 127.0.0.1
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+  min_idle_conns: 5
+  dial_timeout: 5s
+  read_timeout: 3s
+  write_timeout: 3s
+
+# Kafka 配置
+kafka:
+  brokers:
+    - 127.0.0.1:29092
+  version: "3.0.0"
+  consumer_group: happy-billing
+  topics:
+    metering: metering-data
+
+# 日志配置
+log:
+  level: debug         # debug, info, warn, error
+  format: json         # json, text
+  output: stdout       # stdout, file
+  file_path: logs/app.log
+  max_size: 100        # MB
+  max_backups: 10
+  max_age: 30          # 天
+  compress: true
+
+# 链路追踪配置
+tracing:
+  enabled: true        # 是否启用追踪
+  service_name: happy-billing-api
+  endpoint: http://127.0.0.1:14268/api/traces
+  sample_rate: 1.0     # 采样率 (0.0-1.0, 1.0=100% 采样)
