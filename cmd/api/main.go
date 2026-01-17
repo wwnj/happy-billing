@@ -11,6 +11,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/wwnj/happy-billing/internal/api/router"
+	v1 "github.com/wwnj/happy-billing/internal/api/v1"
+	"github.com/wwnj/happy-billing/internal/repository"
+	"github.com/wwnj/happy-billing/internal/service"
 	"github.com/wwnj/happy-billing/pkg/config"
 	"github.com/wwnj/happy-billing/pkg/database"
 	"github.com/wwnj/happy-billing/pkg/logger"
@@ -65,8 +68,31 @@ func main() {
 	// 设置 Gin 模式
 	gin.SetMode(cfg.Server.Mode)
 
+	// 初始化仓储层
+	tenantRepo := repository.NewTenantRepository(database.GetMySQL())
+	orgRepo := repository.NewOrganizationRepository(database.GetMySQL())
+	projectRepo := repository.NewProjectRepository(database.GetMySQL())
+	userRepo := repository.NewUserRepository(database.GetMySQL())
+
+	// 初始化服务层
+	tenantService := service.NewTenantService(
+		database.GetMySQL(),
+		database.GetRedis(),
+		tenantRepo,
+		orgRepo,
+		projectRepo,
+		userRepo,
+	)
+
+	// 初始化处理器
+	healthHandler := v1.NewHealthHandler()
+	tenantHandler := v1.NewTenantHandler(tenantService)
+
 	// 设置路由
-	r := router.SetupRouter()
+	r := router.SetupRouter(&router.Handlers{
+		Health: healthHandler,
+		Tenant: tenantHandler,
+	})
 
 	// 创建 HTTP 服务器
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

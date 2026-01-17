@@ -6,8 +6,14 @@ import (
 	v1 "github.com/wwnj/happy-billing/internal/api/v1"
 )
 
+// Handlers 包含所有处理器
+type Handlers struct {
+	Health *v1.HealthHandler
+	Tenant *v1.TenantHandler
+}
+
 // SetupRouter 设置路由
-func SetupRouter() *gin.Engine {
+func SetupRouter(handlers *Handlers) *gin.Engine {
 	r := gin.New()
 
 	// 全局中间件
@@ -17,15 +23,34 @@ func SetupRouter() *gin.Engine {
 	r.Use(middleware.Tracing()) // 追踪中间件
 
 	// 健康检查（不需要认证）
-	healthHandler := v1.NewHealthHandler()
-	r.GET("/health", healthHandler.Health)
-	r.GET("/ping", healthHandler.Ping)
+	r.GET("/health", handlers.Health.Health)
+	r.GET("/ping", handlers.Health.Ping)
 
 	// API v1 路由组
 	apiV1 := r.Group("/api/v1")
 	{
-		// 待添加：租户、产品、订单等业务路由
-		_ = apiV1
+		// 租户注册（公开接口）
+		apiV1.POST("/tenants/register/individual", handlers.Tenant.RegisterIndividual)
+		apiV1.POST("/tenants/register/enterprise", handlers.Tenant.RegisterEnterprise)
+
+		// 租户管理
+		tenants := apiV1.Group("/tenants")
+		{
+			tenants.GET("", handlers.Tenant.ListTenants)
+			tenants.GET("/:tenant_id", handlers.Tenant.GetTenant)
+			tenants.GET("/:tenant_id/organizations", handlers.Tenant.GetOrganizationsByTenant)
+			tenants.GET("/:tenant_id/projects", handlers.Tenant.GetProjectsByTenant)
+			tenants.GET("/:tenant_id/users", handlers.Tenant.GetUsersByTenant)
+		}
+
+		// 组织管理
+		apiV1.POST("/organizations", handlers.Tenant.CreateOrganization)
+
+		// 项目管理
+		apiV1.POST("/projects", handlers.Tenant.CreateProject)
+
+		// 用户管理
+		apiV1.POST("/users", handlers.Tenant.CreateUser)
 	}
 
 	return r

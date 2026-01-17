@@ -172,3 +172,11 @@ func NewWithCode(code ErrorCode) *BizError {
 		Message: GetMessage(code),
 	}
 }
+
+// NewInternalError 创建内部错误
+func NewInternalError(message string) *BizError {
+	return &BizError{
+		Code:    ErrInternalServer,
+		Message: message,
+	}
+}
