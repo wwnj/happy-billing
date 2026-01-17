@@ -4737,3 +4737,542 @@ mindmap
 
 ---
 
+
+---
+
+## 附录B：主键设计调整说明
+
+### 设计原则：物理主键 + 业务主键
+
+**核心思想：**
+```
+id (BIGINT):           物理主键（数据库内部使用，自增）
+xxx_id (VARCHAR):      业务主键（业务层使用，全局唯一）
+```
+
+**优势：**
+- ✅ 业务ID可读性强（tenant_id="T1001" 比 id=1001 更清晰）
+- ✅ 跨系统集成方便（业务ID不变，即使迁移数据库）
+- ✅ 便于沟通（产品、运营、客服都能直接使用）
+- ✅ 避免暴露内部自增ID（安全性）
+
+---
+
+### 调整后的表设计
+
+#### 1. 租户表
+
+```sql
+CREATE TABLE tenants (
+  id                BIGINT PRIMARY KEY AUTO_INCREMENT,  -- 物理主键
+  tenant_id         VARCHAR(64) UNIQUE NOT NULL,        -- 业务主键：T1001, T1002
+  tenant_code       VARCHAR(64) UNIQUE NOT NULL,        -- 租户编码（保留，用于特殊场景）
+  name              VARCHAR(255) NOT NULL,
+  tenant_type       VARCHAR(32) NOT NULL,
+  preferred_currency VARCHAR(8) DEFAULT 'CNY',
+  
+  verified          TINYINT DEFAULT 0,
+  verified_type     VARCHAR(32),
+  verified_at       TIMESTAMP,
+  verified_info     JSON,
+  
+  status            TINYINT DEFAULT 1,
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_tenant_id (tenant_id),
+  INDEX idx_type (tenant_type)
+);
+```
+
+**业务ID生成规则：**
+```
+tenant_id 格式：T + 时间戳 + 序号
+示例：T20240117001, T20240117002
+```
+
+#### 2. 组织表
+
+```sql
+CREATE TABLE organizations (
+  id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+  organization_id   VARCHAR(64) UNIQUE NOT NULL,        -- 业务主键：ORG20240117001
+  
+  tenant_id         VARCHAR(64) NOT NULL,               -- 关联租户（varchar）
+  parent_organization_id VARCHAR(64),                   -- 父组织（varchar）
+  
+  org_code          VARCHAR(64) UNIQUE NOT NULL,
+  name              VARCHAR(255) NOT NULL,
+  org_type          VARCHAR(32),
+  
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_organization_id (organization_id),
+  INDEX idx_tenant (tenant_id),
+  INDEX idx_parent (parent_organization_id)
+);
+```
+
+#### 3. 项目表
+
+```sql
+CREATE TABLE projects (
+  id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+  project_id        VARCHAR(64) UNIQUE NOT NULL,        -- 业务主键：PRJ20240117001
+  
+  tenant_id         VARCHAR(64) NOT NULL,
+  organization_id   VARCHAR(64) NOT NULL,
+  
+  project_code      VARCHAR(64) UNIQUE NOT NULL,
+  name              VARCHAR(255) NOT NULL,
+  status            TINYINT DEFAULT 1,
+  
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_project_id (project_id),
+  INDEX idx_tenant (tenant_id),
+  INDEX idx_org (organization_id)
+);
+```
+
+#### 4. 用户表
+
+```sql
+CREATE TABLE users (
+  id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id           VARCHAR(64) UNIQUE NOT NULL,        -- 业务主键：USR20240117001
+  
+  tenant_id         VARCHAR(64) NOT NULL,
+  
+  is_primary        TINYINT DEFAULT 0,
+  real_name         VARCHAR(128),
+  id_card           VARCHAR(64),
+  
+  email             VARCHAR(255),
+  phone             VARCHAR(32),
+  
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_user_id (user_id),
+  INDEX idx_tenant (tenant_id)
+);
+```
+
+#### 5. 订单表
+
+```sql
+CREATE TABLE orders (
+  id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+  order_id          VARCHAR(64) UNIQUE NOT NULL,        -- 业务主键：ORD20240117001
+  
+  tenant_id         VARCHAR(64) NOT NULL,
+  organization_id   VARCHAR(64) NOT NULL,
+  project_id        VARCHAR(64) NOT NULL,
+  user_id           VARCHAR(64) NOT NULL,
+  
+  order_type        VARCHAR(32) NOT NULL,
+  spu_code          VARCHAR(64) NOT NULL,
+  sku_code          VARCHAR(64) NOT NULL,
+  
+  original_amount   DECIMAL(18,4) NOT NULL,
+  discount_amount   DECIMAL(18,4) DEFAULT 0,
+  payable_amount    DECIMAL(18,4) NOT NULL,
+  paid_amount       DECIMAL(18,4) DEFAULT 0,
+  
+  period_start      TIMESTAMP,
+  period_end        TIMESTAMP,
+  
+  status            VARCHAR(32) NOT NULL,
+  order_detail      JSON,
+  
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_order_id (order_id),
+  INDEX idx_tenant (tenant_id),
+  INDEX idx_project (project_id),
+  INDEX idx_user (user_id)
+);
+```
+
+#### 6. 资源实例表
+
+```sql
+CREATE TABLE resource_instances (
+  id                BIGINT PRIMARY KEY AUTO_INCREMENT,
+  instance_id       VARCHAR(64) UNIQUE NOT NULL,        -- 业务主键：INS-GPU-20240117001
+  
+  order_id          VARCHAR(64) NOT NULL,
+  tenant_id         VARCHAR(64) NOT NULL,
+  project_id        VARCHAR(64) NOT NULL,
+  
+  product_type      VARCHAR(32) NOT NULL,
+  product_code      VARCHAR(64) NOT NULL,
+  instance_spec     JSON,
+  
+  status            VARCHAR(32) NOT NULL,
+  started_at        TIMESTAMP,
+  stopped_at        TIMESTAMP,
+  
+  created_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at        TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_instance_id (instance_id),
+  INDEX idx_order (order_id),
+  INDEX idx_tenant (tenant_id),
+  INDEX idx_project (project_id)
+);
+```
+
+#### 7. 账单表
+
+```sql
+CREATE TABLE bills (
+  id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+  bill_id             VARCHAR(64) UNIQUE NOT NULL,      -- 业务主键：BILL20240117001
+  
+  order_id            VARCHAR(64) NOT NULL,
+  tenant_id           VARCHAR(64) NOT NULL,
+  organization_id     VARCHAR(64) NOT NULL,
+  project_id          VARCHAR(64) NOT NULL,
+  user_id             VARCHAR(64) NOT NULL,
+  
+  bill_type           VARCHAR(32) NOT NULL,
+  
+  spu_code            VARCHAR(64) NOT NULL,
+  sku_code            VARCHAR(64) NOT NULL,
+  sku_name            VARCHAR(255) NOT NULL,
+  
+  billing_cycle       VARCHAR(32),
+  billing_period_start TIMESTAMP,
+  billing_period_end   TIMESTAMP,
+  
+  currency            VARCHAR(8) DEFAULT 'CNY',
+  exchange_rate       DECIMAL(18,8),
+  base_currency       VARCHAR(8) DEFAULT 'CNY',
+  base_currency_amount DECIMAL(18,4),
+  
+  original_amount     DECIMAL(18,4) NOT NULL,
+  discount_amount     DECIMAL(18,4) DEFAULT 0,
+  adjustment_amount   DECIMAL(18,4) DEFAULT 0,
+  payable_amount      DECIMAL(18,4) NOT NULL,
+  paid_amount         DECIMAL(18,4) DEFAULT 0,
+  
+  status              VARCHAR(32) NOT NULL,
+  bill_detail         JSON,
+  
+  paid_at             TIMESTAMP,
+  payment_method      VARCHAR(32),
+  
+  invoice_id          VARCHAR(64),
+  invoice_status      VARCHAR(32),
+  
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_bill_id (bill_id),
+  INDEX idx_order (order_id),
+  INDEX idx_tenant (tenant_id),
+  INDEX idx_project (project_id),
+  INDEX idx_status (status)
+);
+```
+
+#### 8. 账户表
+
+```sql
+CREATE TABLE accounts (
+  id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+  account_id          VARCHAR(64) UNIQUE NOT NULL,      -- 业务主键：ACC20240117001
+  
+  tenant_id           VARCHAR(64) UNIQUE NOT NULL,      -- 租户ID（一对一）
+  tenant_type         VARCHAR(32) NOT NULL,
+  
+  currency            VARCHAR(8) DEFAULT 'CNY',
+  balance             DECIMAL(18,4) DEFAULT 0,
+  frozen_balance      DECIMAL(18,4) DEFAULT 0,
+  available_balance   DECIMAL(18,4) AS (balance - frozen_balance) STORED,
+  
+  credit_limit        DECIMAL(18,4) DEFAULT 0,
+  credit_used         DECIMAL(18,4) DEFAULT 0,
+  credit_available    DECIMAL(18,4) AS (credit_limit - credit_used) STORED,
+  
+  total_recharge      DECIMAL(18,4) DEFAULT 0,
+  total_consumption   DECIMAL(18,4) DEFAULT 0,
+  
+  status              VARCHAR(32) DEFAULT 'NORMAL',
+  arrears_amount      DECIMAL(18,4) DEFAULT 0,
+  
+  settlement_mode     VARCHAR(32) DEFAULT 'PREPAID',
+  payment_days        INT,
+  balance_alert       DECIMAL(18,4),
+  
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_account_id (account_id),
+  INDEX idx_tenant (tenant_id)
+);
+```
+
+#### 9. 账户流水表
+
+```sql
+CREATE TABLE account_transactions (
+  id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+  transaction_id      VARCHAR(64) UNIQUE NOT NULL,      -- 业务主键：TXN20240117001
+  
+  account_id          VARCHAR(64) NOT NULL,
+  tenant_id           VARCHAR(64) NOT NULL,
+  
+  transaction_type    VARCHAR(32) NOT NULL,
+  
+  amount              DECIMAL(18,4) NOT NULL,
+  balance_before      DECIMAL(18,4) NOT NULL,
+  balance_after       DECIMAL(18,4) NOT NULL,
+  
+  business_type       VARCHAR(32),
+  business_id         VARCHAR(64),                      -- 业务ID（varchar）
+  
+  description         VARCHAR(512),
+  
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  
+  INDEX idx_transaction_id (transaction_id),
+  INDEX idx_account (account_id),
+  INDEX idx_tenant (tenant_id),
+  INDEX idx_business (business_type, business_id)
+);
+```
+
+#### 10. 支付记录表
+
+```sql
+CREATE TABLE payments (
+  id                  BIGINT PRIMARY KEY AUTO_INCREMENT,
+  payment_id          VARCHAR(64) UNIQUE NOT NULL,      -- 业务主键：PAY20240117001
+  
+  bill_id             VARCHAR(64) NOT NULL,
+  account_id          VARCHAR(64) NOT NULL,
+  tenant_id           VARCHAR(64) NOT NULL,
+  user_id             VARCHAR(64) NOT NULL,
+  
+  payment_amount      DECIMAL(18,4) NOT NULL,
+  payment_method      VARCHAR(32) NOT NULL,
+  payment_channel     VARCHAR(32),
+  
+  third_party_trade_no VARCHAR(128),
+  
+  status              VARCHAR(32) NOT NULL,
+  paid_at             TIMESTAMP,
+  refunded_at         TIMESTAMP,
+  
+  created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  
+  INDEX idx_payment_id (payment_id),
+  INDEX idx_bill (bill_id),
+  INDEX idx_account (account_id),
+  INDEX idx_tenant (tenant_id)
+);
+```
+
+---
+
+### 业务ID生成规则
+
+```go
+// 业务ID生成器
+type IDGenerator struct {
+    redis *redis.Client
+}
+
+// 生成租户ID
+func (g *IDGenerator) GenerateTenantID() string {
+    // 格式：T + YYYYMMDD + 序号(3位)
+    date := time.Now().Format("20060102")
+    seq := g.getNextSequence("tenant:" + date)
+    return fmt.Sprintf("T%s%03d", date, seq)
+    // 示例：T20240117001
+}
+
+// 生成组织ID
+func (g *IDGenerator) GenerateOrganizationID() string {
+    // 格式：ORG + YYYYMMDD + 序号(4位)
+    date := time.Now().Format("20060102")
+    seq := g.getNextSequence("org:" + date)
+    return fmt.Sprintf("ORG%s%04d", date, seq)
+    // 示例：ORG202401170001
+}
+
+// 生成项目ID
+func (g *IDGenerator) GenerateProjectID() string {
+    date := time.Now().Format("20060102")
+    seq := g.getNextSequence("project:" + date)
+    return fmt.Sprintf("PRJ%s%04d", date, seq)
+    // 示例：PRJ202401170001
+}
+
+// 生成用户ID
+func (g *IDGenerator) GenerateUserID() string {
+    date := time.Now().Format("20060102")
+    seq := g.getNextSequence("user:" + date)
+    return fmt.Sprintf("USR%s%06d", date, seq)
+    // 示例：USR202401170000001
+}
+
+// 生成订单ID
+func (g *IDGenerator) GenerateOrderID() string {
+    date := time.Now().Format("20060102")
+    seq := g.getNextSequence("order:" + date)
+    return fmt.Sprintf("ORD%s%06d", date, seq)
+    // 示例：ORD202401170000001
+}
+
+// 生成账单ID
+func (g *IDGenerator) GenerateBillID() string {
+    date := time.Now().Format("20060102")
+    seq := g.getNextSequence("bill:" + date)
+    return fmt.Sprintf("BILL%s%06d", date, seq)
+    // 示例：BILL202401170000001
+}
+
+// 生成账户ID
+func (g *IDGenerator) GenerateAccountID() string {
+    date := time.Now().Format("20060102")
+    seq := g.getNextSequence("account:" + date)
+    return fmt.Sprintf("ACC%s%04d", date, seq)
+    // 示例：ACC202401170001
+}
+
+// 生成交易流水ID
+func (g *IDGenerator) GenerateTransactionID() string {
+    timestamp := time.Now().Format("20060102150405")
+    seq := g.getNextSequence("txn:" + timestamp)
+    return fmt.Sprintf("TXN%s%04d", timestamp, seq)
+    // 示例：TXN202401171530450001
+}
+
+// 生成支付ID
+func (g *IDGenerator) GeneratePaymentID() string {
+    timestamp := time.Now().Format("20060102150405")
+    seq := g.getNextSequence("payment:" + timestamp)
+    return fmt.Sprintf("PAY%s%04d", timestamp, seq)
+    // 示例：PAY202401171530450001
+}
+
+// Redis 自增序号
+func (g *IDGenerator) getNextSequence(key string) int64 {
+    seq, _ := g.redis.Incr(context.Background(), key).Result()
+    // 设置过期时间（1天）
+    g.redis.Expire(context.Background(), key, 24*time.Hour)
+    return seq
+}
+```
+
+---
+
+### 数据示例
+
+```sql
+-- 租户
+tenants:
+  id=1, tenant_id='T20240117001', name='阿里巴巴'
+
+-- 组织
+organizations:
+  id=1, organization_id='ORG202401170001', tenant_id='T20240117001', name='淘宝事业部'
+
+-- 项目
+projects:
+  id=1, project_id='PRJ202401170001', tenant_id='T20240117001', organization_id='ORG202401170001'
+
+-- 用户
+users:
+  id=1, user_id='USR202401170000001', tenant_id='T20240117001'
+
+-- 订单
+orders:
+  id=1, order_id='ORD202401170000001', tenant_id='T20240117001', project_id='PRJ202401170001'
+
+-- 账单
+bills:
+  id=1, bill_id='BILL202401170000001', order_id='ORD202401170000001', tenant_id='T20240117001'
+
+-- 账户
+accounts:
+  id=1, account_id='ACC202401170001', tenant_id='T20240117001'
+
+-- 支付
+payments:
+  id=1, payment_id='PAY202401171530450001', bill_id='BILL202401170000001'
+```
+
+---
+
+### 查询示例
+
+```sql
+-- 通过业务ID查询租户
+SELECT * FROM tenants WHERE tenant_id = 'T20240117001';
+
+-- 查询租户的所有订单
+SELECT * FROM orders WHERE tenant_id = 'T20240117001';
+
+-- 查询订单的账单
+SELECT * FROM bills WHERE order_id = 'ORD202401170000001';
+
+-- 查询账户余额
+SELECT balance FROM accounts WHERE tenant_id = 'T20240117001';
+
+-- 连表查询（业务ID）
+SELECT 
+  o.order_id,
+  t.tenant_id,
+  t.name AS tenant_name,
+  p.project_id,
+  p.name AS project_name,
+  o.payable_amount
+FROM orders o
+JOIN tenants t ON o.tenant_id = t.tenant_id
+JOIN projects p ON o.project_id = p.project_id
+WHERE o.order_id = 'ORD202401170000001';
+```
+
+---
+
+### 迁移策略（如果已有数据）
+
+```sql
+-- 为已有表添加业务ID字段
+ALTER TABLE tenants ADD COLUMN tenant_id VARCHAR(64) UNIQUE;
+ALTER TABLE organizations ADD COLUMN organization_id VARCHAR(64) UNIQUE;
+ALTER TABLE projects ADD COLUMN project_id VARCHAR(64) UNIQUE;
+
+-- 为已有数据生成业务ID
+UPDATE tenants SET tenant_id = CONCAT('T', LPAD(id, 12, '0'));
+UPDATE organizations SET organization_id = CONCAT('ORG', LPAD(id, 12, '0'));
+UPDATE projects SET project_id = CONCAT('PRJ', LPAD(id, 12, '0'));
+
+-- 更新外键关联（从 BIGINT 改为 VARCHAR）
+-- 需要分步骤进行，避免数据丢失
+```
+
+---
+
+### 设计对比
+
+| 项目 | 原设计（仅物理主键） | 新设计（双主键） |
+|------|---------------------|-----------------|
+| **主键** | id (BIGINT) | id (BIGINT) + xxx_id (VARCHAR) |
+| **外键** | 引用 id | 引用 xxx_id |
+| **可读性** | tenant.id=1001 | tenant_id='T20240117001' ✅ |
+| **沟通** | "租户1001" | "租户T20240117001" ✅ |
+| **安全** | 暴露自增ID | 业务ID不暴露规律 ✅ |
+| **迁移** | 迁移后ID变化 | 业务ID不变 ✅ |
+
+---
+
