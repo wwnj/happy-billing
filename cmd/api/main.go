@@ -73,6 +73,19 @@ func main() {
 	orgRepo := repository.NewOrganizationRepository(database.GetMySQL())
 	projectRepo := repository.NewProjectRepository(database.GetMySQL())
 	userRepo := repository.NewUserRepository(database.GetMySQL())
+	categoryRepo := repository.NewProductCategoryRepository(database.GetMySQL())
+	spuRepo := repository.NewProductSpuRepository(database.GetMySQL())
+	skuRepo := repository.NewProductSkuRepository(database.GetMySQL())
+	priceRuleRepo := repository.NewPriceRuleRepository(database.GetMySQL())
+	discountRuleRepo := repository.NewDiscountRuleRepository(database.GetMySQL())
+	orderRepo := repository.NewOrderRepository(database.GetMySQL())
+	orderItemRepo := repository.NewOrderItemRepository(database.GetMySQL())
+	resourceRepo := repository.NewResourceInstanceRepository(database.GetMySQL())
+	billRepo := repository.NewBillRepository(database.GetMySQL())
+	paymentRepo := repository.NewPaymentRepository(database.GetMySQL())
+	balanceRepo := repository.NewAccountBalanceRepository(database.GetMySQL())
+	balanceTransRepo := repository.NewBalanceTransactionRepository(database.GetMySQL())
+	exchangeRateRepo := repository.NewExchangeRateRepository(database.GetMySQL())
 
 	// 初始化服务层
 	tenantService := service.NewTenantService(
@@ -83,15 +96,68 @@ func main() {
 		projectRepo,
 		userRepo,
 	)
+	productService := service.NewProductService(
+		database.GetMySQL(),
+		database.GetRedis(),
+		categoryRepo,
+		spuRepo,
+		skuRepo,
+	)
+	pricingService := service.NewPricingService(
+		database.GetMySQL(),
+		database.GetRedis(),
+		priceRuleRepo,
+		discountRuleRepo,
+		skuRepo,
+	)
+	currencyService := service.NewCurrencyService(
+		database.GetRedis(),
+		exchangeRateRepo,
+	)
+	orderService := service.NewOrderService(
+		database.GetMySQL(),
+		database.GetRedis(),
+		orderRepo,
+		orderItemRepo,
+		resourceRepo,
+		billRepo,
+		skuRepo,
+		tenantRepo,
+		pricingService,
+		currencyService,
+	)
+	billService := service.NewBillService(billRepo)
+	paymentService := service.NewPaymentService(
+		database.GetMySQL(),
+		database.GetRedis(),
+		paymentRepo,
+		billRepo,
+		orderRepo,
+		balanceRepo,
+		balanceTransRepo,
+		currencyService,
+	)
 
 	// 初始化处理器
 	healthHandler := v1.NewHealthHandler()
 	tenantHandler := v1.NewTenantHandler(tenantService)
+	productHandler := v1.NewProductHandler(productService)
+	pricingHandler := v1.NewPricingHandler(pricingService)
+	orderHandler := v1.NewOrderHandler(orderService)
+	billHandler := v1.NewBillHandler(billService)
+	paymentHandler := v1.NewPaymentHandler(paymentService)
+	currencyHandler := v1.NewCurrencyHandler(currencyService)
 
 	// 设置路由
 	r := router.SetupRouter(&router.Handlers{
-		Health: healthHandler,
-		Tenant: tenantHandler,
+		Health:   healthHandler,
+		Tenant:   tenantHandler,
+		Product:  productHandler,
+		Pricing:  pricingHandler,
+		Order:    orderHandler,
+		Bill:     billHandler,
+		Payment:  paymentHandler,
+		Currency: currencyHandler,
 	})
 
 	// 创建 HTTP 服务器

@@ -36,9 +36,10 @@ const (
 	ErrCategoryNotFound ErrorCode = 3020
 
 	// 定价相关错误 (4000-4099)
-	ErrPriceRuleNotFound  ErrorCode = 4000
-	ErrPriceCalculateFail ErrorCode = 4001
-	ErrDiscountInvalid    ErrorCode = 4010
+	ErrPriceRuleNotFound    ErrorCode = 4000
+	ErrPriceCalculateFail   ErrorCode = 4001
+	ErrDiscountInvalid      ErrorCode = 4010
+	ErrDiscountRuleNotFound ErrorCode = 4011
 
 	// 订单相关错误 (5000-5099)
 	ErrOrderNotFound      ErrorCode = 5000
@@ -121,40 +122,41 @@ func (e *BizError) HTTPStatus() int {
 
 // 预定义错误消息
 var errorMessages = map[ErrorCode]string{
-	Success:                "成功",
-	ErrInternalServer:      "服务器内部错误",
-	ErrInvalidParams:       "请求参数无效",
-	ErrNotFound:            "资源不存在",
-	ErrUnauthorized:        "未授权",
-	ErrForbidden:           "禁止访问",
-	ErrTooManyRequest:      "请求过于频繁",
-	ErrTenantNotFound:      "租户不存在",
-	ErrTenantAlreadyExists: "租户已存在",
-	ErrTenantDisabled:      "租户已被禁用",
-	ErrOrgNotFound:         "组织不存在",
-	ErrProjectNotFound:     "项目不存在",
-	ErrUserNotFound:        "用户不存在",
-	ErrProductNotFound:     "产品不存在",
-	ErrProductDisabled:     "产品已下架",
-	ErrSKUNotFound:         "SKU不存在",
-	ErrSKUOutOfStock:       "SKU库存不足",
-	ErrCategoryNotFound:    "产品分类不存在",
-	ErrPriceRuleNotFound:   "定价规则不存在",
-	ErrPriceCalculateFail:  "价格计算失败",
-	ErrDiscountInvalid:     "折扣规则无效",
-	ErrOrderNotFound:       "订单不存在",
-	ErrOrderStatusInvalid:  "订单状态无效",
-	ErrOrderCannotCancel:   "订单无法取消",
-	ErrResourceNotFound:    "资源实例不存在",
-	ErrBillNotFound:        "账单不存在",
-	ErrBillAlreadyPaid:     "账单已支付",
-	ErrBillAmountInvalid:   "账单金额无效",
-	ErrPaymentFailed:       "支付失败",
-	ErrBalanceInsufficient: "余额不足",
-	ErrPaymentDuplicate:    "重复支付",
-	ErrRefundFailed:        "退款失败",
-	ErrMeteringDataInvalid: "计量数据无效",
-	ErrMeteringSubmitFail:  "计量数据提交失败",
+	Success:                 "成功",
+	ErrInternalServer:       "服务器内部错误",
+	ErrInvalidParams:        "请求参数无效",
+	ErrNotFound:             "资源不存在",
+	ErrUnauthorized:         "未授权",
+	ErrForbidden:            "禁止访问",
+	ErrTooManyRequest:       "请求过于频繁",
+	ErrTenantNotFound:       "租户不存在",
+	ErrTenantAlreadyExists:  "租户已存在",
+	ErrTenantDisabled:       "租户已被禁用",
+	ErrOrgNotFound:          "组织不存在",
+	ErrProjectNotFound:      "项目不存在",
+	ErrUserNotFound:         "用户不存在",
+	ErrProductNotFound:      "产品不存在",
+	ErrProductDisabled:      "产品已下架",
+	ErrSKUNotFound:          "SKU不存在",
+	ErrSKUOutOfStock:        "SKU库存不足",
+	ErrCategoryNotFound:     "产品分类不存在",
+	ErrPriceRuleNotFound:    "定价规则不存在",
+	ErrPriceCalculateFail:   "价格计算失败",
+	ErrDiscountInvalid:      "折扣规则无效",
+	ErrDiscountRuleNotFound: "折扣规则不存在",
+	ErrOrderNotFound:        "订单不存在",
+	ErrOrderStatusInvalid:   "订单状态无效",
+	ErrOrderCannotCancel:    "订单无法取消",
+	ErrResourceNotFound:     "资源实例不存在",
+	ErrBillNotFound:         "账单不存在",
+	ErrBillAlreadyPaid:      "账单已支付",
+	ErrBillAmountInvalid:    "账单金额无效",
+	ErrPaymentFailed:        "支付失败",
+	ErrBalanceInsufficient:  "余额不足",
+	ErrPaymentDuplicate:     "重复支付",
+	ErrRefundFailed:         "退款失败",
+	ErrMeteringDataInvalid:  "计量数据无效",
+	ErrMeteringSubmitFail:   "计量数据提交失败",
 }
 
 // GetMessage 获取错误消息
@@ -178,5 +180,16 @@ func NewInternalError(message string) *BizError {
 	return &BizError{
 		Code:    ErrInternalServer,
 		Message: message,
+	}
+}
+
+// Wrap 包装错误
+func Wrap(err error, message string) *BizError {
+	if bizErr, ok := err.(*BizError); ok {
+		return bizErr
+	}
+	return &BizError{
+		Code:    ErrInternalServer,
+		Message: message + ": " + err.Error(),
 	}
 }

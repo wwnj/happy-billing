@@ -32,6 +32,9 @@ go.work.sum
 .cluade/
 CLAUDE.md
 
+# log file
+logs
+
 # Editor/IDE
 .idea/
 .vscode/

@@ -24,6 +24,8 @@ const (
 	PrefixPayment      = "pay"      // 支付
 	PrefixCategory     = "category" // 分类
 	PrefixResource     = "resource" // 资源实例
+	PrefixPriceRule    = "price"    // 定价规则
+	PrefixDiscount     = "discount" // 折扣规则
 )
 
 // EnhancedIDGenerator 增强的分布式ID生成器
@@ -216,6 +218,20 @@ func GenerateCategoryID(ctx context.Context, redis *redis.Client) (string, error
 // 格式: resource_f5a2d4b7e1
 func GenerateResourceID(ctx context.Context, redis *redis.Client) (string, error) {
 	gen := NewEnhancedIDGenerator(redis, PrefixResource)
+	return gen.Generate(ctx)
+}
+
+// GeneratePriceRuleID 生成定价规则ID
+// 格式: price_a1b2c3d4e5
+func GeneratePriceRuleID(ctx context.Context, redis *redis.Client) (string, error) {
+	gen := NewEnhancedIDGenerator(redis, PrefixPriceRule)
+	return gen.Generate(ctx)
+}
+
+// GenerateDiscountID 生成折扣规则ID
+// 格式: discount_b2c3d4e5f6
+func GenerateDiscountID(ctx context.Context, redis *redis.Client) (string, error) {
+	gen := NewEnhancedIDGenerator(redis, PrefixDiscount)
 	return gen.Generate(ctx)
 }
 
