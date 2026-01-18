@@ -137,6 +137,7 @@ func main() {
 		balanceTransRepo,
 		currencyService,
 	)
+	authService := service.NewAuthService(database.GetMySQL())
 
 	// 初始化处理器
 	healthHandler := v1.NewHealthHandler()
@@ -147,6 +148,7 @@ func main() {
 	billHandler := v1.NewBillHandler(billService)
 	paymentHandler := v1.NewPaymentHandler(paymentService)
 	currencyHandler := v1.NewCurrencyHandler(currencyService)
+	authHandler := v1.NewAuthHandler(authService)
 
 	// 设置路由
 	r := router.SetupRouter(&router.Handlers{
@@ -158,6 +160,7 @@ func main() {
 		Bill:     billHandler,
 		Payment:  paymentHandler,
 		Currency: currencyHandler,
+		Auth:     authHandler,
 	})
 
 	// 创建 HTTP 服务器

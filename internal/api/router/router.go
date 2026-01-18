@@ -16,6 +16,7 @@ type Handlers struct {
 	Bill     *v1.BillHandler
 	Payment  *v1.PaymentHandler
 	Currency *v1.CurrencyHandler
+	Auth     *v1.AuthHandler
 }
 
 // SetupRouter 设置路由
@@ -35,6 +36,14 @@ func SetupRouter(handlers *Handlers) *gin.Engine {
 	// API v1 路由组
 	apiV1 := r.Group("/api/v1")
 	{
+		// 认证接口（公开）
+		auth := apiV1.Group("/auth")
+		{
+			auth.POST("/login", handlers.Auth.Login)
+			auth.POST("/logout", handlers.Auth.Logout)
+			auth.GET("/user", handlers.Auth.GetUserInfo)
+		}
+
 		// 租户注册（公开接口）
 		apiV1.POST("/tenants/register/individual", handlers.Tenant.RegisterIndividual)
 		apiV1.POST("/tenants/register/enterprise", handlers.Tenant.RegisterEnterprise)
