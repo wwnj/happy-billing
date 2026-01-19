@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"strconv"
+
 	"github.com/gin-gonic/gin"
 	"github.com/wwnj/happy-billing/internal/api/response"
 	"github.com/wwnj/happy-billing/internal/models"
@@ -161,5 +163,57 @@ func (h *PaymentHandler) Recharge(c *gin.Context) {
 		"tenant_id": tenantID,
 		"amount":    req.Amount,
 		"message":   "充值成功",
+	})
+}
+
+// GetBalanceTransactions 获取余额变动记录
+// @Summary 获取余额变动记录
+// @Description 获取租户的余额变动记录列表（支持分页）
+// @Tags 账户余额
+// @Accept json
+// @Produce json
+// @Param tenant_id path string true "租户ID"
+// @Param page query int false "页码" default(1)
+// @Param page_size query int false "每页数量" default(20)
+// @Success 200 {object} response.Response{data=object} "成功"
+// @Failure 400 {object} response.Response "请求参数错误"
+// @Failure 500 {object} response.Response "服务器错误"
+// @Router /tenants/{tenant_id}/balance/transactions [get]
+func (h *PaymentHandler) GetBalanceTransactions(c *gin.Context) {
+	tenantID := c.Param("tenant_id")
+	if tenantID == "" {
+		response.Error(c, errors.New(errors.ErrInvalidParams, "租户ID不能为空"))
+		return
+	}
+
+	// 获取分页参数
+	page := 1
+	pageSize := 20
+	if p, ok := c.GetQuery("page"); ok && p != "" {
+		if pInt, err := strconv.Atoi(p); err == nil && pInt > 0 {
+			page = pInt
+		}
+	}
+	if ps, ok := c.GetQuery("page_size"); ok && ps != "" {
+		if psInt, err := strconv.Atoi(ps); err == nil && psInt > 0 {
+			pageSize = psInt
+		}
+	}
+
+	transactions, total, err := h.paymentService.GetBalanceTransactions(c.Request.Context(), tenantID, page, pageSize)
+	if err != nil {
+		if bizErr, ok := err.(*errors.BizError); ok {
+			response.Error(c, bizErr)
+		} else {
+			response.Error(c, errors.NewInternalError(err.Error()))
+		}
+		return
+	}
+
+	response.Success(c, gin.H{
+		"data":      transactions,
+		"total":     total,
+		"page":      page,
+		"page_size": pageSize,
 	})
 }

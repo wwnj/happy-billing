@@ -40,6 +40,7 @@ type AccountBalanceRepository interface {
 type BalanceTransactionRepository interface {
 	Create(ctx context.Context, transaction *models.BalanceTransaction) error
 	ListByTenant(ctx context.Context, tenantID string, limit int) ([]models.BalanceTransaction, error)
+	ListByTenantPaginated(ctx context.Context, tenantID string, page, pageSize int) ([]models.BalanceTransaction, int64, error)
 }
 
 // ============================================================================
@@ -245,4 +246,27 @@ func (r *balanceTransactionRepository) ListByTenant(ctx context.Context, tenantI
 
 	err := query.Find(&transactions).Error
 	return transactions, err
+}
+
+func (r *balanceTransactionRepository) ListByTenantPaginated(ctx context.Context, tenantID string, page, pageSize int) ([]models.BalanceTransaction, int64, error) {
+	var transactions []models.BalanceTransaction
+	var total int64
+
+	query := r.db.WithContext(ctx).Model(&models.BalanceTransaction{}).
+		Where("tenant_id = ?", tenantID)
+
+	// 获取总数
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// 分页查询
+	offset := (page - 1) * pageSize
+	err := query.
+		Order("created_at DESC").
+		Limit(pageSize).
+		Offset(offset).
+		Find(&transactions).Error
+
+	return transactions, total, err
 }

@@ -141,6 +141,7 @@ func SetupRouter(handlers *Handlers) *gin.Engine {
 		// 账户余额管理
 		apiV1.GET("/tenants/:tenant_id/balance", handlers.Payment.GetBalance)
 		apiV1.POST("/tenants/:tenant_id/balance/recharge", handlers.Payment.Recharge)
+		apiV1.GET("/tenants/:tenant_id/balance/transactions", handlers.Payment.GetBalanceTransactions)
 
 		// 货币管理
 		exchangeRates := apiV1.Group("/exchange-rates")

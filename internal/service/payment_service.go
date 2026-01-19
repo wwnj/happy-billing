@@ -21,6 +21,7 @@ type PaymentService interface {
 	// 余额操作
 	GetBalance(ctx context.Context, tenantID string) (*models.AccountBalance, error)
 	Recharge(ctx context.Context, tenantID string, amount float64) error
+	GetBalanceTransactions(ctx context.Context, tenantID string, page, pageSize int) ([]models.BalanceTransaction, int64, error)
 }
 
 type paymentService struct {
@@ -290,4 +291,21 @@ func (s *paymentService) Recharge(ctx context.Context, tenantID string, amount f
 
 		return s.balanceTransRepo.Create(ctx, transaction)
 	})
+}
+
+// GetBalanceTransactions 获取余额变动记录
+func (s *paymentService) GetBalanceTransactions(ctx context.Context, tenantID string, page, pageSize int) ([]models.BalanceTransaction, int64, error) {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+
+	transactions, total, err := s.balanceTransRepo.ListByTenantPaginated(ctx, tenantID, page, pageSize)
+	if err != nil {
+		return nil, 0, errors.NewInternalError("查询余额变动记录失败: " + err.Error())
+	}
+
+	return transactions, total, nil
 }
