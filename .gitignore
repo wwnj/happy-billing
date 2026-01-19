@@ -29,7 +29,7 @@ go.work.sum
 .env
 
 # cluade file
-.cluade/
+.claude/
 CLAUDE.md
 
 # log file
