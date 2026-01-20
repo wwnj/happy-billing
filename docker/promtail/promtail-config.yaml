@@ -28,22 +28,30 @@ scrape_configs:
             caller: caller
             trace_id: trace_id
             span_id: span_id
+            component: component
+            # HTTP 请求字段
             status: status
             method: method
             path: path
+            query: query
+            ip: ip
             latency: latency
+            user_agent: user_agent
+            # GORM SQL 字段
+            sql: sql
+            elapsed: elapsed
+            rows: rows
+            error: error
       # 提取时间戳
       - timestamp:
           source: time
           format: RFC3339
-      # 设置标签
+      # 设置标签（用于索引和过滤）
       - labels:
           level:
+          component:
           trace_id:
           span_id:
-      # 输出格式
-      - output:
-          source: msg
 
   # 收集主机系统日志（可选）
   - job_name: system

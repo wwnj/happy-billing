@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
 var mysqlDB *gorm.DB
@@ -27,7 +26,7 @@ func InitMySQL(cfg *config.MySQLConfig) error {
 
 	// 配置 GORM
 	gormConfig := &gorm.Config{
-		Logger: getGormLogger(cfg.LogLevel),
+		Logger: NewGormLogger(cfg.LogLevel), // 使用自定义logger
 		NowFunc: func() time.Time {
 			return time.Now().Local()
 		},
@@ -84,22 +83,4 @@ func CloseMySQL() error {
 		return sqlDB.Close()
 	}
 	return nil
-}
-
-// getGormLogger 获取 GORM 日志级别
-func getGormLogger(level string) logger.Interface {
-	var logLevel logger.LogLevel
-	switch level {
-	case "silent":
-		logLevel = logger.Silent
-	case "error":
-		logLevel = logger.Error
-	case "warn":
-		logLevel = logger.Warn
-	case "info":
-		logLevel = logger.Info
-	default:
-		logLevel = logger.Warn
-	}
-	return logger.Default.LogMode(logLevel)
 }
