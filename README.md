@@ -16,17 +16,35 @@ Happy Billing 是一个专为 AI 云 PaaS 平台设计的企业级订单账单�
 - 📊 **双存储**: MySQL 存储业务数据 + ClickHouse 存储海量计量数据
 - 🔐 **多租户**: 完整的租户体系（Tenant → Organization → Project → User）
 - ⚡ **高性能**: 单节点支持 10 万 TPS 计量数据写入
+- 🔍 **可观测性**: 完整的链路追踪（Jaeger）、日志聚合（Loki）、监控（Grafana）
+- 🎨 **现代化前端**: React + TypeScript + Ant Design 管理界面
 
 ## 🛠️ 技术栈
 
-- **应用框架**: Go 1.25 + Gin/Echo
+### 后端
+- **应用框架**: Go 1.25 + Gin
 - **业务数据库**: MySQL 8.0（订单、账单、用户）
 - **计量数据库**: ClickHouse 23.x+（海量时序数据）
 - **缓存**: Redis 7.x+（定价规则、汇率、会话）
 - **消息队列**: Kafka 3.x+（事件驱动）
-- **容器化**: Docker + Kubernetes
-- **监控**: Prometheus + Grafana
-- **日志**: ELK Stack
+
+### 前端
+- **框架**: React 18 + TypeScript
+- **UI 库**: Ant Design 5.x
+- **状态管理**: Zustand
+- **路由**: React Router 6
+- **构建工具**: Vite
+
+### 可观测性
+- **链路追踪**: Jaeger（OpenTelemetry）
+- **日志聚合**: Loki + Promtail
+- **监控可视化**: Grafana
+- **日志库**: Zap（结构化 JSON 日志）
+
+### 部署
+- **容器化**: Docker + Docker Compose
+- **编排**: Kubernetes（生产环境）
+- **CI/CD**: GitHub Actions
 
 ## 📁 项目结构
 
@@ -58,34 +76,103 @@ happy-billing/
 
 ## 🚀 快速开始
 
-### 方式一：使用 Docker Compose（推荐）⭐
+> 💡 **首次使用？** 阅读完整的 [快速启动指南](QUICKSTART.md) 获取详细步骤和故障排查。
 
-**一键启动所有依赖服务：**
+### ⚡ 一键启动（推荐）
+
+**适用于首次使用或开发环境，自动初始化所有服务和测试数据：**
 
 ```bash
-# 1. 启动所有服务（MySQL, Redis, ClickHouse, Jaeger）
-./scripts/start-docker.sh
+# 1. 克隆项目
+git clone https://github.com/wwnj/happy-billing.git
+cd happy-billing
 
-# 或手动执行
-docker-compose up -d
-
-# 2. 编译并启动 API 服务
-go build -o bin/api cmd/api/main.go
-./bin/api
-
-# 3. 验证服务
-curl http://localhost:8080/health
+# 2. 一键启动所有服务（自动初始化数据库）
+bash scripts/start-docker.sh
 ```
 
-**访问管理界面：**
-- Jaeger UI (链路追踪): http://localhost:16686
-- API 服务: http://localhost:8080
+**脚本将自动完成：**
+- ✅ 启动 Docker 服务（MySQL, Redis, ClickHouse, Kafka, Jaeger, Loki, Grafana）
+- ✅ 检测并初始化数据库（18 张表 + 测试数据）
+- ✅ 显示服务访问地址
 
-**详细文档:** [Docker Compose 部署指南](docs/deployment/docker-compose-guide.md)
+**启动后端和前端：**
+
+```bash
+# 3. 启动后端 API（新终端）
+cd happy-billing
+make run-api
+
+# 4. 启动前端界面（新终端）
+cd happy-billing-frontend
+npm install  # 首次需要安装依赖
+npm run dev
+```
+
+**访问服务：**
+
+| 服务 | 地址 | 说明 |
+|------|------|------|
+| 🎨 **前端界面** | http://localhost:5173 | 管理后台（React + Ant Design）|
+| 🔌 **API 服务** | http://localhost:8080 | 后端 API（健康检查：/health）|
+| 📊 **Jaeger UI** | http://localhost:16686 | 分布式链路追踪 |
+| 📈 **Grafana** | http://localhost:3000 | 日志和监控（admin/admin）|
+
+**测试 API：**
+
+```bash
+# 健康检查
+curl http://localhost:8080/health
+
+# 查询租户列表
+curl http://localhost:8080/api/v1/tenants?page=1&page_size=10
+
+# 查询订单列表（使用测试租户）
+curl "http://localhost:8080/api/v1/orders?tenant_id=tenant_demo_001&page=1&page_size=5"
+```
+
+### 📊 验证数据库
+
+```bash
+# 检查数据库状态
+bash migrations/mysql/check.sh
+
+# 预期输出：
+# ✅ 数据库: happy_billing
+# 📊 数据表数量: 18
+# 📋 模块表统计:
+#    租户模块: 3 个租户、3 个组织、3 个项目、3 个用户
+#    产品模块: 8 个分类、2 个SPU、5 个SKU
+#    订单模块: 9 个订单、8 个订单项、7 张账单
+```
+
+### 🧪 测试数据说明
+
+自动初始化的测试数据包括：
+
+**租户数据（3 个）：**
+- `tenant_demo_001` - Demo 演示租户（企业，已认证）⭐ 推荐用于测试
+- `tenant_a3f9b2c4d5` - 测试个人开发者（个人，已实名）
+- `tenant_e8d7c2a1f4` - 测试企业用户（企业，未认证）
+
+**产品数据（5 个 SKU）：**
+- GPU 计算：A100 40GB/80GB（北京/上海）、V100 32GB
+
+**测试用户凭证：**
+| 用户名 | 密码 | 所属租户 |
+|--------|------|----------|
+| demouser | 123456 | tenant_demo_001 |
+| testuser | 123456 | tenant_a3f9b2c4d5 |
+| admin | 123456 | tenant_e8d7c2a1f4 |
+
+⚠️ **安全提示**：测试密码仅用于开发环境！
 
 ---
 
-### 方式二：手动安装
+### 🔧 手动安装（高级）
+
+<details>
+<summary>点击展开手动安装步骤</summary>
 
 #### 前置条件
 
@@ -95,7 +182,7 @@ curl http://localhost:8080/health
 - Redis 7.x+
 - Kafka 3.x+（可选，开发环境可跳过）
 
-### 安装依赖
+#### 安装依赖
 
 ```bash
 # 克隆项目
@@ -106,7 +193,7 @@ cd happy-billing
 go mod download
 ```
 
-### 配置环境
+#### 配置环境
 
 ```bash
 # 复制配置文件
@@ -116,17 +203,20 @@ cp config/config.example.yaml config/config.yaml
 vim config/config.yaml
 ```
 
-### 数据库迁移
+#### 数据库初始化
 
 ```bash
-# 运行数据库迁移
-make migrate-up
+# 方法一：使用初始化脚本（推荐）
+bash migrations/mysql/init.sh
 
-# 或者手动执行
-go run cmd/migrate/main.go up
+# 方法二：手动执行 SQL
+mysql -h127.0.0.1 -ubilling_user -pbilling_pass_2024 happy_billing < migrations/20260117_create_tenant_tables.sql
+# ... 按顺序执行其他 SQL 文件
 ```
 
-### 启动服务
+详见：[数据库迁移文档](migrations/README.md)
+
+#### 启动服务
 
 ```bash
 # 启动 API 服务
@@ -136,17 +226,23 @@ make run-api
 go run cmd/api/main.go
 ```
 
-### 验证服务
+#### 验证服务
 
 ```bash
 # 健康检查
 curl http://localhost:8080/health
 
-# 查看 API 文档
+# 查看 API 文档（如果启用了 Swagger）
 open http://localhost:8080/swagger/index.html
 ```
 
+</details>
+
 ## 📚 文档
+
+### 快速开始
+- **[⚡ 快速启动指南](QUICKSTART.md)** ⭐ **新手必读** - 一键启动、服务访问、测试数据
+- **[📋 数据库迁移文档](migrations/README.md)** - SQL 执行顺序、数据初始化、故障排查
 
 ### 设计文档
 

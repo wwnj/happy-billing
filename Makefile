@@ -1,4 +1,4 @@
-.PHONY: help fmt lint test coverage build clean run-api run-worker migrate-up migrate-down docker-build docker-up docker-down
+.PHONY: help fmt lint test coverage build clean run-api run-worker migrate-up migrate-down migrate-init migrate-check docker-build docker-up docker-down docker-start docker-logs
 
 # 默认目标：显示帮助信息
 help:
@@ -19,13 +19,17 @@ help:
 	@echo "  make clean         - 清理构建文件"
 	@echo ""
 	@echo "数据库命令:"
-	@echo "  make migrate-up    - 执行数据库迁移"
-	@echo "  make migrate-down  - 回滚数据库迁移"
+	@echo "  make migrate-up    - 执行数据库迁移（Go 迁移工具）"
+	@echo "  make migrate-down  - 回滚数据库迁移（Go 迁移工具）"
+	@echo "  make migrate-init  - 初始化数据库（执行所有 SQL 和测试数据）⭐"
+	@echo "  make migrate-check - 检查数据库状态"
 	@echo ""
 	@echo "Docker 命令:"
-	@echo "  make docker-build  - 构建 Docker 镜像"
+	@echo "  make docker-start  - 一键启动所有服务（推荐）⭐"
 	@echo "  make docker-up     - 启动 Docker 容器"
 	@echo "  make docker-down   - 停止 Docker 容器"
+	@echo "  make docker-logs   - 查看 Docker 日志"
+	@echo "  make docker-build  - 构建 Docker 镜像"
 
 # 格式化代码
 fmt:
@@ -122,6 +126,17 @@ migrate-down:
 	@go run cmd/migrate/main.go down
 	@echo "✅ 数据库回滚完成"
 
+# 初始化数据库（执行所有 SQL 和测试数据）
+migrate-init:
+	@echo "==> 初始化数据库..."
+	@bash migrations/mysql/init.sh
+	@echo "✅ 数据库初始化完成"
+
+# 检查数据库状态
+migrate-check:
+	@echo "==> 检查数据库状态..."
+	@bash migrations/mysql/check.sh
+
 # 构建 Docker 镜像
 docker-build:
 	@echo "==> 构建 Docker 镜像..."
@@ -129,17 +144,27 @@ docker-build:
 	@docker build -t happy-billing-worker:latest -f Dockerfile.worker .
 	@echo "✅ Docker 镜像构建完成"
 
-# 启动 Docker 容器（使用 docker-compose）
+# 一键启动所有服务（推荐）
+docker-start:
+	@echo "==> 一键启动所有服务..."
+	@bash scripts/start-docker.sh
+
+# 启动 Docker 容器（使用 docker compose）
 docker-up:
 	@echo "==> 启动 Docker 容器..."
-	@docker-compose up -d
+	@docker compose up -d
 	@echo "✅ Docker 容器已启动"
 
 # 停止 Docker 容器
 docker-down:
 	@echo "==> 停止 Docker 容器..."
-	@docker-compose down
+	@docker compose down
 	@echo "✅ Docker 容器已停止"
+
+# 查看 Docker 日志
+docker-logs:
+	@echo "==> 查看 Docker 日志..."
+	@docker compose logs -f
 
 # 安装开发工具
 install-tools:

@@ -3,20 +3,9 @@
 -- ============================================================================
 
 -- ============================================================================
--- 1. 数据库表结构修正
+-- 1. 清理现有测试数据（支持重复执行）
 -- ============================================================================
-
--- 添加汇率相关字段到 orders 表（如果不存在）
-ALTER TABLE orders
-  ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(18,8) NULL COMMENT '汇率' AFTER currency,
-  ADD COLUMN IF NOT EXISTS base_currency VARCHAR(8) NULL DEFAULT 'CNY' COMMENT '本位币' AFTER exchange_rate,
-  ADD COLUMN IF NOT EXISTS base_currency_amount DECIMAL(18,4) NULL COMMENT '本位币金额' AFTER base_currency;
-
--- 添加汇率相关字段到 payments 表（如果不存在）
-ALTER TABLE payments
-  ADD COLUMN IF NOT EXISTS exchange_rate DECIMAL(18,8) NULL COMMENT '汇率' AFTER currency,
-  ADD COLUMN IF NOT EXISTS base_currency VARCHAR(8) NULL DEFAULT 'CNY' COMMENT '本位币' AFTER exchange_rate,
-  ADD COLUMN IF NOT EXISTS base_currency_amount DECIMAL(18,4) NULL COMMENT '本位币金额' AFTER base_currency;
+-- 注意：多币种字段已在 20240117_add_multi_currency_fields.sql 中添加，这里不再重复
 
 -- ============================================================================
 -- 2. 用户账号初始化
