@@ -127,7 +127,14 @@ func (p *GormTracingPlugin) after(db *gorm.DB) {
 	if !ok {
 		return
 	}
-	span, ok := _span.(interface{ End(...interface{}) })
+
+	// 正确的类型断言：使用 trace.Span 接口
+	span, ok := _span.(interface {
+		End(...interface{})
+		SetStatus(codes.Code, string)
+		SetAttributes(...attribute.KeyValue)
+		RecordError(error, ...interface{})
+	})
 	if !ok {
 		return
 	}
@@ -135,15 +142,15 @@ func (p *GormTracingPlugin) after(db *gorm.DB) {
 
 	// 记录影响的行数
 	if db.Statement.RowsAffected >= 0 {
-		SetAttributes(db.Statement.Context, attribute.Int64("db.rows_affected", db.Statement.RowsAffected))
+		span.SetAttributes(attribute.Int64("db.rows_affected", db.Statement.RowsAffected))
 	}
 
 	// 如果有错误，记录错误
 	if db.Error != nil && db.Error != gorm.ErrRecordNotFound {
-		RecordError(db.Statement.Context, db.Error)
-		span.End(codes.Error, db.Error.Error())
+		span.RecordError(db.Error)
+		span.SetStatus(codes.Error, db.Error.Error())
 	} else {
-		span.End(codes.Ok, "")
+		span.SetStatus(codes.Ok, "")
 	}
 }
 

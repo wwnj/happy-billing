@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
 	"github.com/wwnj/happy-billing/pkg/config"
-	"github.com/wwnj/happy-billing/pkg/tracing"
+	"go.opentelemetry.io/otel/attribute"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -56,10 +57,12 @@ func InitMySQL(cfg *config.MySQLConfig) error {
 		return fmt.Errorf("failed to ping mysql: %w", err)
 	}
 
-	// 安装追踪插件
-	tracingPlugin := tracing.NewGormTracingPlugin(tracing.DBSystemMySQL)
-	if err := db.Use(tracingPlugin); err != nil {
-		return fmt.Errorf("failed to install tracing plugin: %w", err)
+	// 安装 OpenTelemetry 追踪插件（使用 uptrace/otelgorm）
+	if err := db.Use(otelgorm.NewPlugin(
+		otelgorm.WithDBName(cfg.Database),
+		otelgorm.WithAttributes(attribute.String("db.system", "mysql")),
+	)); err != nil {
+		return fmt.Errorf("failed to install otelgorm plugin: %w", err)
 	}
 
 	mysqlDB = db
