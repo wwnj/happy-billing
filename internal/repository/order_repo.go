@@ -86,6 +86,9 @@ func (r *orderRepository) List(ctx context.Context, req *models.OrderListQueryRe
 	if req.Status != nil {
 		query = query.Where("status = ?", *req.Status)
 	}
+	if req.Currency != nil {
+		query = query.Where("currency = ?", *req.Currency)
+	}
 	if req.Keyword != nil {
 		query = query.Where("order_no LIKE ? OR order_id LIKE ?", "%"+*req.Keyword+"%", "%"+*req.Keyword+"%")
 	}

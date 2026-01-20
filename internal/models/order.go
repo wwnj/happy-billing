@@ -357,6 +357,7 @@ type OrderListQueryRequest struct {
 	UserID    *string      `json:"user_id" form:"user_id"`
 	OrderType *OrderType   `json:"order_type" form:"order_type"`
 	Status    *OrderStatus `json:"status" form:"status"`
+	Currency  *string      `json:"currency" form:"currency"`
 	Keyword   *string      `json:"keyword" form:"keyword"`
 }
 

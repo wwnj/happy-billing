@@ -97,6 +97,7 @@ func (h *OrderHandler) GetOrder(c *gin.Context) {
 // @Param user_id query string false "用户ID"
 // @Param order_type query string false "订单类型"
 // @Param status query string false "订单状态"
+// @Param currency query string false "货币类型"
 // @Param keyword query string false "搜索关键词"
 // @Param page query int false "页码" default(1)
 // @Param page_size query int false "每页数量" default(20)
