@@ -1,0 +1,55 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # 收集 Happy Billing 应用日志
+  - job_name: happy-billing
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: happy-billing-api
+          app: happy-billing
+          __path__: /var/log/happy-billing/*.log
+    pipeline_stages:
+      # 解析 JSON 格式日志
+      - json:
+          expressions:
+            time: time
+            level: level
+            msg: msg
+            caller: caller
+            trace_id: trace_id
+            span_id: span_id
+            status: status
+            method: method
+            path: path
+            latency: latency
+      # 提取时间戳
+      - timestamp:
+          source: time
+          format: RFC3339
+      # 设置标签
+      - labels:
+          level:
+          trace_id:
+          span_id:
+      # 输出格式
+      - output:
+          source: msg
+
+  # 收集主机系统日志（可选）
+  - job_name: system
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: system-logs
+          __path__: /var/log/host/*.log

@@ -98,6 +98,70 @@ services:
     networks:
       - billing-network
 
+  # Loki - 日志聚合系统
+  loki:
+    image: grafana/loki:latest
+    container_name: happy-billing-loki
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "${LOKI_PORT:-3100}:3100"
+    volumes:
+      - loki_data:/loki
+      - ./docker/loki/loki-config.yaml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - billing-network
+
+  # Promtail - 日志收集器
+  promtail:
+    image: grafana/promtail:latest
+    container_name: happy-billing-promtail
+    restart: unless-stopped
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - ./docker/promtail/promtail-config.yaml:/etc/promtail/config.yaml
+      - ./logs:/var/log/happy-billing  # 挂载应用日志目录
+      - /var/log:/var/log/host:ro      # 挂载主机日志（可选）
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      - loki
+    networks:
+      - billing-network
+
+  # Grafana - 可视化平台
+  grafana:
+    image: grafana/grafana:latest
+    container_name: happy-billing-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_INSTALL_PLUGINS: grafana-clock-panel
+      TZ: Asia/Shanghai
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - loki
+      - jaeger
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - billing-network
+
   # Kafka - 消息队列 (可选)
   zookeeper:
     image: confluentinc/cp-zookeeper:7.5.0
@@ -183,6 +247,10 @@ volumes:
   redis_data:
     driver: local
   clickhouse_data:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
     driver: local
   zookeeper_data:
     driver: local

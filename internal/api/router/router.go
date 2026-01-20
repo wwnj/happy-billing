@@ -24,10 +24,10 @@ func SetupRouter(handlers *Handlers) *gin.Engine {
 	r := gin.New()
 
 	// 全局中间件
-	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 	r.Use(corsMiddleware())
-	r.Use(middleware.Tracing()) // 追踪中间件
+	r.Use(middleware.Tracing())  // 追踪中间件（必须在logger之前）
+	r.Use(middleware.Logger())   // 日志中间件（自动关联trace）
 
 	// 健康检查（不需要认证）
 	r.GET("/health", handlers.Health.Health)

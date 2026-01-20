@@ -3,16 +3,19 @@ package logger
 import (
 	"os"
 
+	"github.com/uptrace/opentelemetry-go-extra/otelzap"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 var (
-	// Logger 全局日志实例
-	Logger *zap.Logger
+	// Logger 全局日志实例（otelzap包装的logger）
+	Logger *otelzap.Logger
 	// Sugar 全局 Sugar Logger 实例
 	Sugar *zap.SugaredLogger
+	// baseLogger 基础 zap logger（供需要原始logger的地方使用）
+	baseLogger *zap.Logger
 )
 
 // Config 日志配置
@@ -60,17 +63,31 @@ func Init(cfg *Config) error {
 	// 设置输出
 	var writeSyncer zapcore.WriteSyncer
 	if cfg.Output == "file" {
+		// 文件输出
 		writeSyncer = getLogWriter(cfg)
+	} else if cfg.Output == "both" {
+		// 同时输出到控制台和文件
+		writeSyncer = zapcore.NewMultiWriteSyncer(
+			zapcore.AddSync(os.Stdout),
+			getLogWriter(cfg),
+		)
 	} else {
+		// 默认输出到控制台
 		writeSyncer = zapcore.AddSync(os.Stdout)
 	}
 
 	// 创建核心
 	core := zapcore.NewCore(encoder, writeSyncer, level)
 
-	// 创建日志实例
-	Logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(0), zap.AddStacktrace(zapcore.ErrorLevel))
-	Sugar = Logger.Sugar()
+	// 创建基础日志实例
+	baseLogger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(0), zap.AddStacktrace(zapcore.ErrorLevel))
+
+	// 使用 otelzap 包装，自动将日志关联到 OpenTelemetry traces
+	Logger = otelzap.New(baseLogger,
+		otelzap.WithMinLevel(zapcore.InfoLevel), // 只将 Info 及以上级别的日志发送到 OpenTelemetry
+		otelzap.WithCallerDepth(1),              // 正确的调用栈深度
+	)
+	Sugar = baseLogger.Sugar()
 
 	return nil
 }
@@ -105,8 +122,8 @@ func getLogWriter(cfg *Config) zapcore.WriteSyncer {
 
 // Sync 刷新日志缓冲区
 func Sync() {
-	if Logger != nil {
-		_ = Logger.Sync()
+	if baseLogger != nil {
+		_ = baseLogger.Sync()
 	}
 	if Sugar != nil {
 		_ = Sugar.Sync()
@@ -115,27 +132,27 @@ func Sync() {
 
 // Debug 快捷方法
 func Debug(msg string, fields ...zap.Field) {
-	Logger.Debug(msg, fields...)
+	baseLogger.Debug(msg, fields...)
 }
 
 // Info 快捷方法
 func Info(msg string, fields ...zap.Field) {
-	Logger.Info(msg, fields...)
+	baseLogger.Info(msg, fields...)
 }
 
 // Warn 快捷方法
 func Warn(msg string, fields ...zap.Field) {
-	Logger.Warn(msg, fields...)
+	baseLogger.Warn(msg, fields...)
 }
 
 // Error 快捷方法
 func Error(msg string, fields ...zap.Field) {
-	Logger.Error(msg, fields...)
+	baseLogger.Error(msg, fields...)
 }
 
 // Fatal 快捷方法
 func Fatal(msg string, fields ...zap.Field) {
-	Logger.Fatal(msg, fields...)
+	baseLogger.Fatal(msg, fields...)
 }
 
 // Debugf 格式化快捷方法
